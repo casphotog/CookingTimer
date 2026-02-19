@@ -8,31 +8,32 @@
     [180, 300, 600],
     [180, 300, 600],
   ];
+  const FIELD_COUNT = DEFAULT_LABELS.length;
 
-  function loadLabels() {
+  function loadFromStorage(key, validate, fallback) {
     try {
-      const raw = localStorage.getItem('cooking-labels');
+      const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length === 4) return parsed;
+        if (validate(parsed)) return parsed;
       }
     } catch {}
-    return [...DEFAULT_LABELS];
+    return fallback();
   }
 
-  function loadPresets() {
-    try {
-      const raw = localStorage.getItem('cooking-presets');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length === 4) return parsed;
-      }
-    } catch {}
-    return DEFAULT_PRESETS.map(row => [...row]);
-  }
+  const isValidArray = (v) => Array.isArray(v) && v.length === FIELD_COUNT;
 
-  let labels = $state(loadLabels());
-  let presets = $state(loadPresets());
+  let labels = $state(loadFromStorage(
+    'cooking-labels',
+    isValidArray,
+    () => [...DEFAULT_LABELS],
+  ));
+
+  let presets = $state(loadFromStorage(
+    'cooking-presets',
+    isValidArray,
+    () => DEFAULT_PRESETS.map(row => [...row]),
+  ));
 
   function handleLabelChange(index, newLabel) {
     labels[index] = newLabel;
@@ -50,9 +51,8 @@
 </script>
 
 <main>
-  {#each [0, 1, 2, 3] as i}
+  {#each labels as _, i}
     <CookingField
-      fieldIndex={i}
       initialLabel={labels[i]}
       initialPresets={presets[i]}
       onLabelChange={(label) => handleLabelChange(i, label)}

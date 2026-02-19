@@ -1,12 +1,15 @@
 <script>
   import { untrack } from 'svelte';
 
+  const SCROLL_DEBOUNCE_MS = 80;
+  const SNAP_SETTLE_MS = 350;
+
   // itemHeight is passed by the parent so the picker scales to any container size.
   // Default 50 is used only on the very first render before clientHeight resolves.
   let { value, min, max, pad = 2, itemHeight = 50, onChange } = $props();
 
-  // min/max are static constants in this app — compute once
-  const items = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+  // Derived so the list stays correct if min/max props ever change.
+  let items = $derived(Array.from({ length: max - min + 1 }, (_, i) => min + i));
 
   let scrollEl  = $state(null);
   let scrollTimer = null;
@@ -34,10 +37,10 @@
       const clamped = Math.max(0, Math.min(items.length - 1, index));
       settling = true;
       scrollEl.scrollTo({ top: clamped * h, behavior: 'smooth' });
-      setTimeout(() => { settling = false; }, 350);
+      setTimeout(() => { settling = false; }, SNAP_SETTLE_MS);
       const newVal = min + clamped;
       if (newVal !== value) onChange(newVal);
-    }, 80);
+    }, SCROLL_DEBOUNCE_MS);
   }
 
   // Derived inline-style values (heights depend on itemHeight prop)

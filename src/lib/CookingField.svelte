@@ -1,8 +1,12 @@
 <script>
   import WheelPicker from "./WheelPicker.svelte";
 
+  // ── Constants ──────────────────────────────────────────────────────────────
+  const DONE_DURATION_MS = 20_000;
+  const DONE_TICK_MS = 50;
+  const ICON_SWITCH_THRESHOLD = 0.5;
+
   let {
-    fieldIndex,
     initialLabel,
     initialPresets,
     onLabelChange,
@@ -12,9 +16,9 @@
   // ── State ──────────────────────────────────────────────────────────────────
   let phase = $state("idle"); // 'idle' | 'running' | 'done'
   let remainingSeconds = $state(0);
-  let intervalId = $state(null);
-  let doneProgress = $state(0); // 0 (green) → 1 (red) over 20s
-  let doneIntervalId = $state(null);
+  let intervalId = null;
+  let doneProgress = $state(0); // 0 (green) → 1 (red) over DONE_DURATION_MS
+  let doneIntervalId = null;
 
   let label = $state(initialLabel);
   let editingLabel = $state(false);
@@ -34,17 +38,36 @@
     pickersRowHeight > 4 ? Math.floor(pickersRowHeight / 5) : 50,
   );
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function formatTime(secs) {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+
+  // Interpolate green (#22c55e = 34,197,94) → red (#ef4444 = 239,68,68)
+  function lerpRgb(r1, g1, b1, r2, g2, b2, t) {
+    return {
+      r: Math.round(r1 + (r2 - r1) * t),
+      g: Math.round(g1 + (g2 - g1) * t),
+      b: Math.round(b1 + (b2 - b1) * t),
+    };
+  }
+
+  function buildDoneStyle(progress) {
+    const { r, g, b } = lerpRgb(34, 197, 94, 239, 68, 68, progress);
+    return [
+      `--done-color:rgb(${r},${g},${b})`,
+      `--done-glow:rgba(${r},${g},${b},0.35)`,
+      `--done-bg:rgba(${r},${g},${b},0.12)`,
+    ].join(";");
+  }
+
   // ── Derived ────────────────────────────────────────────────────────────────
   let displayTime = $derived(formatTime(remainingSeconds));
   let isDone = $derived(phase === "done");
-
-  // Interpolate green (#22c55e) → red (#ef4444) based on doneProgress
-  let doneR = $derived(Math.round(34 + (239 - 34) * doneProgress));
-  let doneG = $derived(Math.round(197 + (68 - 197) * doneProgress));
-  let doneB = $derived(Math.round(94 + (68 - 94) * doneProgress));
-  let doneColor = $derived(`rgb(${doneR}, ${doneG}, ${doneB})`);
-  let doneGlow = $derived(`rgba(${doneR}, ${doneG}, ${doneB}, 0.35)`);
-  let doneBg = $derived(`rgba(${doneR}, ${doneG}, ${doneB}, 0.12)`);
+  let doneStyle = $derived(isDone ? buildDoneStyle(doneProgress) : "");
+  let doneIcon = $derived(doneProgress < ICON_SWITCH_THRESHOLD ? "✓" : "!");
 
   // ── Cleanup on unmount ─────────────────────────────────────────────────────
   $effect(() => {
@@ -61,14 +84,18 @@
     }
   });
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  function formatTime(secs) {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${String(s).padStart(2, "0")}`;
+  // ── State machine ──────────────────────────────────────────────────────────
+  function startDoneProgress() {
+    const doneStart = Date.now();
+    doneIntervalId = setInterval(() => {
+      doneProgress = Math.min(1, (Date.now() - doneStart) / DONE_DURATION_MS);
+      if (doneProgress >= 1) {
+        clearInterval(doneIntervalId);
+        doneIntervalId = null;
+      }
+    }, DONE_TICK_MS);
   }
 
-  // ── State machine ──────────────────────────────────────────────────────────
   function startTimer(seconds) {
     if (phase !== "idle") return;
     remainingSeconds = seconds;
@@ -81,16 +108,7 @@
         intervalId = null;
         doneProgress = 0;
         phase = "done";
-        const doneStart = Date.now();
-        const DONE_DURATION = 20000;
-        doneIntervalId = setInterval(() => {
-          const elapsed = Date.now() - doneStart;
-          doneProgress = Math.min(1, elapsed / DONE_DURATION);
-          if (doneProgress >= 1) {
-            clearInterval(doneIntervalId);
-            doneIntervalId = null;
-          }
-        }, 50);
+        startDoneProgress();
       }
     }, 1000);
   }
@@ -163,7 +181,7 @@
   class="field"
   class:phase-running={phase === "running"}
   class:phase-done={isDone}
-  style={isDone ? `--done-color:${doneColor};--done-glow:${doneGlow};--done-bg:${doneBg}` : ''}
+  style={doneStyle}
   role={isDone ? "button" : undefined}
   tabindex={isDone ? 0 : undefined}
   onclick={isDone ? acknowledgeField : undefined}
@@ -251,7 +269,7 @@
         >
 
         <div class="preset-dots">
-          {#each [0, 1, 2] as i}
+          {#each presets as _, i}
             <button
               class="dot"
               class:active={i === editingPresetIndex}
@@ -318,7 +336,7 @@
   {#if isDone}
     <div class="done-content">
       <span class="done-label">{label}</span>
-      <span class="done-icon" style="color:{doneColor}">{doneProgress < 0.5 ? "✓" : "!"}</span>
+      <span class="done-icon" style="color:var(--done-color)">{doneIcon}</span>
       <span class="done-hint">Tap to dismiss</span>
     </div>
   {/if}
