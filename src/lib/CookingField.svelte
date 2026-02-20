@@ -724,7 +724,7 @@
 
   .countdown {
     font-family: var(--font-mono);
-    font-size: 2.4rem;
+    font-size: 5rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--color-text);

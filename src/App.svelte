@@ -4,9 +4,9 @@
   const DEFAULT_LABELS     = ['Timer 1', 'Timer 2', 'Timer 3', 'Timer 4'];
   const DEFAULT_PRESET_ROW = [180, 300, 600];
   const DEFAULT_PRESETS    = Array.from({ length: DEFAULT_LABELS.length }, () => [...DEFAULT_PRESET_ROW]);
-  const DEFAULT_CARD_SIZE  = 300;  // px — multiple of GRID
-  const MIN_SIZE           = 160;  // px — multiple of GRID
-  const GRID               = 40;   // px — snap granularity
+  const DEFAULT_CARD_SIZE  = 320;  // px — multiple of GRID
+  const MIN_SIZE           = 180;  // px — multiple of GRID
+  const GRID               = 20;   // px — snap granularity
   const WIGGLE_DELAY       = 0.07; // seconds — stagger per card
 
   function snap(v) { return Math.round(v / GRID) * GRID; }
