@@ -714,8 +714,8 @@
   /* ── Running / stopwatch: countdown fills space above cancel button ── */
   .running-display {
     flex: 1;
+    position: relative;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
     min-height: 0;
@@ -739,10 +739,14 @@
   }
 
   .stopwatch-hint {
+    position: absolute;
+    bottom: 8px;
+    left: 0; right: 0;
+    text-align: center;
     font-size: 0.72rem;
     color: var(--color-muted);
     letter-spacing: 0.06em;
-    margin-top: 6px;
+    pointer-events: none;
   }
 
   /* Cancel button shares preset-btn shape; these rules override only color/font/size.
