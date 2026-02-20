@@ -386,10 +386,12 @@
     <div class="field-header">
       <span class="label-static">{label}</span>
     </div>
-    <div class="running-content">
-      <div class="countdown">{displayTime}</div>
+    <div class="presets presets--running">
+      <div class="running-display">
+        <div class="countdown">{displayTime}</div>
+      </div>
+      <button class="preset-btn btn-cancel-timer" onclick={cancelTimer}>Cancel</button>
     </div>
-    <button class="btn-cancel-timer" onclick={cancelTimer}>Cancel</button>
   {/if}
 
   <!-- ── STOPWATCH ──────────────────────────────────────────────────────── -->
@@ -397,19 +399,21 @@
     <div class="field-header">
       <span class="label-static">{label}</span>
     </div>
-    <div
-      class="running-content"
-      role="button"
-      tabindex="0"
-      onclick={toggleStopwatch}
-      onkeydown={(e) => { if (e.key === ' ' || e.key === 'Enter') toggleStopwatch(); }}
-    >
-      <div class="countdown" class:is-paused={stopwatchPaused}>{displayElapsed}</div>
-      {#if stopwatchPaused}
-        <div class="stopwatch-hint">paused · tap to resume</div>
-      {/if}
+    <div class="presets presets--running">
+      <div
+        class="running-display"
+        role="button"
+        tabindex="0"
+        onclick={toggleStopwatch}
+        onkeydown={(e) => { if (e.key === ' ' || e.key === 'Enter') toggleStopwatch(); }}
+      >
+        <div class="countdown" class:is-paused={stopwatchPaused}>{displayElapsed}</div>
+        {#if stopwatchPaused}
+          <div class="stopwatch-hint">paused · tap to resume</div>
+        {/if}
+      </div>
+      <button class="preset-btn btn-cancel-timer" onclick={cancelStopwatch}>Cancel</button>
     </div>
-    <button class="btn-cancel-timer" onclick={cancelStopwatch}>Cancel</button>
   {/if}
 
   <!-- ── DONE ───────────────────────────────────────────────────────────── -->
@@ -454,12 +458,6 @@
       0 0 20px 4px var(--accent-glow);
   }
 
-  /* Keep header above the absolutely-positioned countdown/elapsed display */
-  .field.phase-running .field-header,
-  .field.phase-stopwatch .field-header {
-    position: relative;
-    z-index: 1;
-  }
 
   .field.phase-done {
     display: grid;
@@ -547,6 +545,7 @@
     gap: 10px;
     min-height: 0;
   }
+
 
   .preset-btn {
     flex: 1; /* equal share of .presets height */
@@ -712,14 +711,15 @@
     background: rgba(255, 255, 255, 0.1);
   }
 
-  /* ── Running phase — countdown centred over the full card ── */
-  .running-content {
-    position: absolute;
-    inset: 0;
+  /* ── Running / stopwatch: countdown fills space above cancel button ── */
+  .running-display {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    min-height: 0;
+    cursor: default;
   }
 
   .countdown {
@@ -745,24 +745,20 @@
     margin-top: 6px;
   }
 
+  /* Cancel button shares preset-btn shape; these rules override only color/font/size.
+     flex-basis is derived from idle mode: (container-height - 3×gap) / 4 buttons.
+     100% resolves to the flex container's main size (height) per CSS spec. */
   .btn-cancel-timer {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
+    flex: 0 0 calc((100% - 30px) / 4);
     background: rgba(239, 68, 68, 0.08);
-    border: none;
-    border-top: 1px solid rgba(239, 68, 68, 0.15);
-    border-radius: 0 0 var(--radius) var(--radius);
+    border-color: rgba(239, 68, 68, 0.2);
     color: rgba(239, 68, 68, 0.7);
+    font-family: inherit;
     font-size: 0.88rem;
-    font-weight: 600;
-    padding: 22px;
-    cursor: pointer;
-    transition:
-      background 150ms ease,
-      color 150ms ease;
   }
   .btn-cancel-timer:hover {
     background: rgba(239, 68, 68, 0.16);
+    border-color: rgba(239, 68, 68, 0.4);
     color: var(--color-red);
   }
 
