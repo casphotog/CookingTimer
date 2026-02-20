@@ -36,7 +36,6 @@ body {
      avoiding the min-content collapse that align-items:center causes. */
   display: flex;
   flex-direction: column;
-  justify-content: center;
   min-height: 100vh;
   padding: 16px;
   -webkit-font-smoothing: antialiased;

@@ -70,7 +70,7 @@
        keeping horizontal and vertical spacing equal. */
     width: 100%;
     max-width: calc(2 * (50vh - 32px) + 32px);
-    margin: 0 auto;
+    margin: auto;
   }
 
   @media (max-width: 500px) {
