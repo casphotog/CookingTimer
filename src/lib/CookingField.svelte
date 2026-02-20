@@ -2,23 +2,38 @@
   import WheelPicker from "./WheelPicker.svelte";
 
   // ── Constants ──────────────────────────────────────────────────────────────
-  const DONE_DURATION_MS = 20_000;
-  const DONE_TICK_MS = 50;
+  const PHASES = { IDLE: 'idle', RUNNING: 'running', DONE: 'done', STOPWATCH: 'stopwatch' };
+
+  const DONE_DURATION_MS    = 20_000;
+  const DONE_TICK_MS        = 50;
   const ICON_SWITCH_THRESHOLD = 0.5;
+
+  const GREEN_RGB        = [34, 197, 94];  // #22c55e
+  const RED_RGB          = [239, 68, 68];  // #ef4444
+  const DONE_GLOW_ALPHA  = 0.35;
+  const DONE_BG_ALPHA    = 0.12;
+
+  const MAX_MINS = 99;
+  const MAX_SECS = 59;
 
   let {
     initialLabel,
     initialPresets,
+    arranging = false,
     onLabelChange,
     onPresetsChange,
   } = $props();
 
   // ── State ──────────────────────────────────────────────────────────────────
-  let phase = $state("idle"); // 'idle' | 'running' | 'done'
+  let phase = $state(PHASES.IDLE);
   let remainingSeconds = $state(0);
   let intervalId = null;
   let doneProgress = $state(0); // 0 (green) → 1 (red) over DONE_DURATION_MS
   let doneIntervalId = null;
+
+  let elapsedSeconds = $state(0);
+  let stopwatchPaused = $state(false);
+  let stopwatchIntervalId = null;
 
   let label = $state(initialLabel);
   let editingLabel = $state(false);
@@ -45,7 +60,15 @@
     return `${m}:${String(s).padStart(2, "0")}`;
   }
 
-  // Interpolate green (#22c55e = 34,197,94) → red (#ef4444 = 239,68,68)
+  function formatElapsed(secs) {
+    if (secs < 3600) return formatTime(secs);
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  // Interpolate between two RGB colours over progress [0,1]
   function lerpRgb(r1, g1, b1, r2, g2, b2, t) {
     return {
       r: Math.round(r1 + (r2 - r1) * t),
@@ -55,17 +78,18 @@
   }
 
   function buildDoneStyle(progress) {
-    const { r, g, b } = lerpRgb(34, 197, 94, 239, 68, 68, progress);
+    const { r, g, b } = lerpRgb(...GREEN_RGB, ...RED_RGB, progress);
     return [
       `--done-color:rgb(${r},${g},${b})`,
-      `--done-glow:rgba(${r},${g},${b},0.35)`,
-      `--done-bg:rgba(${r},${g},${b},0.12)`,
+      `--done-glow:rgba(${r},${g},${b},${DONE_GLOW_ALPHA})`,
+      `--done-bg:rgba(${r},${g},${b},${DONE_BG_ALPHA})`,
     ].join(";");
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────
   let displayTime = $derived(formatTime(remainingSeconds));
-  let isDone = $derived(phase === "done");
+  let displayElapsed = $derived(formatElapsed(elapsedSeconds));
+  let isDone = $derived(phase === PHASES.DONE);
   let doneStyle = $derived(isDone ? buildDoneStyle(doneProgress) : "");
   let doneIcon = $derived(doneProgress < ICON_SWITCH_THRESHOLD ? "✓" : "!");
 
@@ -74,6 +98,7 @@
     return () => {
       clearInterval(intervalId);
       clearInterval(doneIntervalId);
+      clearInterval(stopwatchIntervalId);
     };
   });
 
@@ -97,9 +122,9 @@
   }
 
   function startTimer(seconds) {
-    if (phase !== "idle") return;
+    if (phase !== PHASES.IDLE) return;
     remainingSeconds = seconds;
-    phase = "running";
+    phase = PHASES.RUNNING;
     intervalId = setInterval(() => {
       remainingSeconds -= 1;
       if (remainingSeconds <= 0) {
@@ -107,7 +132,7 @@
         clearInterval(intervalId);
         intervalId = null;
         doneProgress = 0;
-        phase = "done";
+        phase = PHASES.DONE;
         startDoneProgress();
       }
     }, 1000);
@@ -116,15 +141,44 @@
   function cancelTimer() {
     clearInterval(intervalId);
     intervalId = null;
-    phase = "idle";
+    phase = PHASES.IDLE;
     remainingSeconds = 0;
+  }
+
+  // ── Stopwatch ──────────────────────────────────────────────────────────────
+  function startStopwatch() {
+    if (phase !== PHASES.IDLE) return;
+    elapsedSeconds = 0;
+    stopwatchPaused = false;
+    phase = PHASES.STOPWATCH;
+    stopwatchIntervalId = setInterval(() => { elapsedSeconds += 1; }, 1000);
+  }
+
+  function toggleStopwatch() {
+    if (phase !== PHASES.STOPWATCH) return;
+    if (stopwatchPaused) {
+      stopwatchPaused = false;
+      stopwatchIntervalId = setInterval(() => { elapsedSeconds += 1; }, 1000);
+    } else {
+      clearInterval(stopwatchIntervalId);
+      stopwatchIntervalId = null;
+      stopwatchPaused = true;
+    }
+  }
+
+  function cancelStopwatch() {
+    clearInterval(stopwatchIntervalId);
+    stopwatchIntervalId = null;
+    elapsedSeconds = 0;
+    stopwatchPaused = false;
+    phase = PHASES.IDLE;
   }
 
   function acknowledgeField() {
     clearInterval(doneIntervalId);
     doneIntervalId = null;
     doneProgress = 0;
-    phase = "idle";
+    phase = PHASES.IDLE;
     remainingSeconds = 0;
   }
 
@@ -179,20 +233,21 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   class="field"
-  class:phase-running={phase === "running"}
+  class:phase-running={phase === PHASES.RUNNING}
+  class:phase-stopwatch={phase === PHASES.STOPWATCH}
   class:phase-done={isDone}
   style={doneStyle}
-  role={isDone ? "button" : undefined}
-  tabindex={isDone ? 0 : undefined}
-  onclick={isDone ? acknowledgeField : undefined}
-  onkeydown={isDone
+  role={isDone && !arranging ? "button" : undefined}
+  tabindex={isDone && !arranging ? 0 : undefined}
+  onclick={isDone && !arranging ? acknowledgeField : undefined}
+  onkeydown={isDone && !arranging
     ? (e) => {
         if (e.key === "Enter" || e.key === " ") acknowledgeField();
       }
     : undefined}
 >
   <!-- ── IDLE: normal ──────────────────────────────────────────────────── -->
-  {#if phase === "idle" && !editingPresets}
+  {#if phase === PHASES.IDLE && !editingPresets}
     <div class="field-header">
       {#if editingLabel}
         <input
@@ -247,11 +302,14 @@
           {formatTime(secs)}
         </button>
       {/each}
+      <button class="preset-btn preset-btn--stopwatch" onclick={startStopwatch} title="Count up">
+        ⏱
+      </button>
     </div>
   {/if}
 
   <!-- ── IDLE: preset editing (wheel pickers) ──────────────────────────── -->
-  {#if phase === "idle" && editingPresets}
+  {#if phase === PHASES.IDLE && editingPresets}
     <div class="field-header">
       <span class="label-static">{label}</span>
     </div>
@@ -297,7 +355,7 @@
           <WheelPicker
             value={draftMins[editingPresetIndex]}
             min={0}
-            max={99}
+            max={MAX_MINS}
             {itemHeight}
             onChange={(v) => {
               draftMins[editingPresetIndex] = v;
@@ -307,7 +365,7 @@
           <WheelPicker
             value={draftSecs[editingPresetIndex]}
             min={0}
-            max={59}
+            max={MAX_SECS}
             {itemHeight}
             onChange={(v) => {
               draftSecs[editingPresetIndex] = v;
@@ -324,12 +382,34 @@
   {/if}
 
   <!-- ── RUNNING ────────────────────────────────────────────────────────── -->
-  {#if phase === "running"}
-    <div class="running-content">
+  {#if phase === PHASES.RUNNING}
+    <div class="field-header">
       <span class="label-static">{label}</span>
+    </div>
+    <div class="running-content">
       <div class="countdown">{displayTime}</div>
     </div>
     <button class="btn-cancel-timer" onclick={cancelTimer}>Cancel</button>
+  {/if}
+
+  <!-- ── STOPWATCH ──────────────────────────────────────────────────────── -->
+  {#if phase === PHASES.STOPWATCH}
+    <div class="field-header">
+      <span class="label-static">{label}</span>
+    </div>
+    <div
+      class="running-content"
+      role="button"
+      tabindex="0"
+      onclick={toggleStopwatch}
+      onkeydown={(e) => { if (e.key === ' ' || e.key === 'Enter') toggleStopwatch(); }}
+    >
+      <div class="countdown" class:is-paused={stopwatchPaused}>{displayElapsed}</div>
+      {#if stopwatchPaused}
+        <div class="stopwatch-hint">paused · tap to resume</div>
+      {/if}
+    </div>
+    <button class="btn-cancel-timer" onclick={cancelStopwatch}>Cancel</button>
   {/if}
 
   <!-- ── DONE ───────────────────────────────────────────────────────────── -->
@@ -344,25 +424,17 @@
 
 <!-- ── Styles ──────────────────────────────────────────────────────────────── -->
 <style>
-  /* ── Card shell — fixed size always ── */
+  /* ── Card shell — fills fixed-size wrapper ── */
   .field {
     background: var(--bg-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
-    padding: 32px 28px;
+    padding: 16px 14px;
     display: flex;
     flex-direction: column;
     gap: 20px;
-    /* Square — height always equals width, regardless of phase.
-       max-height/max-width keep both rows on screen: (100vh - 32px padding - 32px gap) / 2.
-       width:100% fills the grid column; max-width caps it for tall viewports.
-       justify/align-self center the card in its grid cell. */
-    aspect-ratio: 1 / 1;
     width: 100%;
-    max-height: calc(50vh - 32px);
-    max-width: calc(50vh - 32px);
-    justify-self: center;
-    align-self: center;
+    height: 100%;
     position: relative;
     min-width: 0;
     overflow: hidden;
@@ -374,15 +446,19 @@
     user-select: none;
   }
 
-  .field.phase-running {
-    display: grid;
-    grid-template: 1fr / 1fr;
-    place-items: center;
-    padding: 0;
+  .field.phase-running,
+  .field.phase-stopwatch {
     border-color: var(--accent);
     box-shadow:
       0 0 0 1px var(--accent),
       0 0 20px 4px var(--accent-glow);
+  }
+
+  /* Keep header above the absolutely-positioned countdown/elapsed display */
+  .field.phase-running .field-header,
+  .field.phase-stopwatch .field-header {
+    position: relative;
+    z-index: 1;
   }
 
   .field.phase-done {
@@ -399,16 +475,21 @@
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+    min-height: 25px; /* icon-btn height — keeps label vertically consistent with/without icon */
   }
 
-  .label-btn {
-    background: none;
-    border: none;
+  /* Shared label typography (button, static span, done phase label) */
+  :is(.label-btn, .label-static, .done-label) {
     color: var(--color-muted);
     font-size: 0.82rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+  }
+
+  .label-btn {
+    background: none;
+    border: none;
     cursor: pointer;
     padding: 0;
     transition: color 150ms ease;
@@ -420,11 +501,6 @@
   }
 
   .label-static {
-    color: var(--color-muted);
-    font-size: 0.82rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     flex: 1;
   }
 
@@ -496,6 +572,17 @@
   }
   .preset-btn:active {
     transform: scale(0.97);
+  }
+
+  .preset-btn--stopwatch {
+    font-size: 1.4rem;
+    color: var(--color-muted);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  .preset-btn--stopwatch:hover {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: var(--color-green);
+    color: var(--color-green);
   }
 
   /* ── Preset edit: wheel picker layout ── */
@@ -625,33 +712,42 @@
     background: rgba(255, 255, 255, 0.1);
   }
 
-  /* ── Running phase — centred over the full card ── */
+  /* ── Running phase — countdown centred over the full card ── */
   .running-content {
-    grid-area: 1 / 1;
+    position: absolute;
+    inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 20px;
-    padding: 32px 28px;
   }
 
   .countdown {
     font-family: var(--font-mono);
-    font-size: clamp(3rem, 7vw, 6.5rem);
+    font-size: 2.4rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--color-text);
     letter-spacing: -0.03em;
     line-height: 1;
     animation: fade-in 200ms ease;
+    transition: opacity 200ms ease;
+  }
+
+  .countdown.is-paused {
+    opacity: 0.45;
+  }
+
+  .stopwatch-hint {
+    font-size: 0.72rem;
+    color: var(--color-muted);
+    letter-spacing: 0.06em;
+    margin-top: 6px;
   }
 
   .btn-cancel-timer {
-    grid-area: 1 / 1;
-    justify-self: stretch;
-    align-self: end;
-    z-index: 1;
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
     background: rgba(239, 68, 68, 0.08);
     border: none;
     border-top: 1px solid rgba(239, 68, 68, 0.15);
@@ -679,16 +775,10 @@
     text-align: center;
   }
 
-  .done-label {
-    font-size: 0.82rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-muted);
-  }
+  /* .done-label typography comes from the shared :is() rule above */
 
   .done-icon {
-    font-size: 5rem;
+    font-size: 3rem;
     line-height: 1;
     font-weight: 700;
   }

@@ -126,10 +126,10 @@
   }
   .mask-top {
     top: 0;
-    background: linear-gradient(to bottom, #1a1a1a 15%, rgba(26, 26, 26, 0));
+    background: linear-gradient(to bottom, var(--bg-card) 15%, transparent);
   }
   .mask-bottom {
     bottom: 0;
-    background: linear-gradient(to top, #1a1a1a 15%, rgba(26, 26, 26, 0));
+    background: linear-gradient(to top, var(--bg-card) 15%, transparent);
   }
 </style>
