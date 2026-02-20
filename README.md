@@ -1,43 +1,66 @@
-# Svelte + Vite
+# Cooking Timer
 
-This template should help get you started developing with Svelte in Vite.
+A minimal, dark-themed multi-timer app for the kitchen. Built for use on a tablet mounted near the stove. Timers are freely positionable to mirror your physical cooktop layout.
 
-## Recommended IDE Setup
+## Features
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+- **Multiple timers** — add as many as you need, delete the ones you don't
+- **Countdown timers** — three configurable presets per tile, tap to start
+- **Stopwatch** — per-tile count-up timer with pause/resume
+- **Freeform canvas** — drag tiles anywhere on screen to match your stove layout
+- **Resizable tiles** — drag the bottom-right corner to resize each tile independently
+- **Snap to grid** — positions and sizes snap to a 40 px grid for easy alignment
+- **Arrange mode** — iOS-style jiggle locks tiles during normal use; tap Arrange to reposition
+- **Persistent layout** — positions, sizes, labels, and presets survive page reload (localStorage)
+- **Done alerts** — finished timers flash and animate from green → red until dismissed
 
-## Need an official Svelte framework?
+## Usage
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+### Normal mode
+- Tap a time button to start a countdown
+- Tap ⏱ to start a count-up stopwatch; tap the display to pause/resume
+- Tap **Cancel** to stop a running timer
+- Tap a done (flashing) tile to dismiss it
+- Tap a timer label to rename it
 
-## Technical considerations
+### Arrange mode
+Tap **Arrange** (bottom-right corner) to enter arrange mode:
+- Tiles wiggle and can be dragged freely
+- Drag the striped handle in the bottom-right of a tile to resize it
+- Tap **+** to add a new timer tile
+- Tap the **×** badge on a tile to delete it
+- Tap **Clean Up** to re-center the group on screen while preserving relative positions
+- Tap **Done** to lock the layout and save
 
-**Why use this over SvelteKit?**
+### Editing presets
+Tap the pencil icon (top-right of a tile in normal mode) to edit the three countdown presets using scroll pickers.
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+## Development
 
-This template contains as little as possible to get started with Vite + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
-
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
-
-**Why include `.vscode/extensions.json`?**
-
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
-
-**Why enable `checkJs` in the JS template?**
-
-It is likely that most cases of changing variable types in runtime are likely to be accidental, rather than deliberate. This provides advanced typechecking out of the box. Should you like to take advantage of the dynamically-typed nature of JavaScript, it is trivial to change the configuration.
-
-**Why is HMR not preserving my local component state?**
-
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/sveltejs/svelte-hmr/tree/master/packages/svelte-hmr#preservation-of-local-state).
-
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
-
-```js
-// store.js
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run build    # production build → dist/
+npm run preview  # preview build at http://localhost:4173
 ```
+
+## Docker
+
+A multi-stage Dockerfile builds the app and serves it via nginx.
+
+```bash
+docker build -t cookingtimer .
+docker run -p 8080:80 cookingtimer
+```
+
+Or with Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+## Stack
+
+- [Svelte 5](https://svelte.dev/) — UI framework (uses runes: `$state`, `$derived`, `$effect`)
+- [Vite](https://vitejs.dev/) — build tool
+- [nginx](https://nginx.org/) — static file server in production
