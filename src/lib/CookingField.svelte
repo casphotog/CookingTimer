@@ -477,7 +477,8 @@
   }
 
   /* Shared label typography (button, static span, done phase label) */
-  :is(.label-btn, .label-static, .done-label) {
+  /* Note: :is() not supported in Safari < 14, so expanded to individual selectors */
+  .label-btn, .label-static, .done-label {
     color: var(--color-muted);
     font-size: 0.82rem;
     font-weight: 600;

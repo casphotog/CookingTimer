@@ -4,12 +4,21 @@
   const DEFAULT_LABELS     = ['Timer 1', 'Timer 2', 'Timer 3', 'Timer 4'];
   const DEFAULT_PRESET_ROW = [180, 300, 600];
   const DEFAULT_PRESETS    = Array.from({ length: DEFAULT_LABELS.length }, () => [...DEFAULT_PRESET_ROW]);
-  const DEFAULT_CARD_SIZE  = 320;  // px — multiple of GRID
   const MIN_SIZE           = 180;  // px — multiple of GRID
   const GRID               = 20;   // px — snap granularity
   const WIGGLE_DELAY       = 0.07; // seconds — stagger per card
 
   function snap(v) { return Math.round(v / GRID) * GRID; }
+
+  // Fit a 2-column × 2-row grid into the current viewport with generous padding
+  function computeDefaultCardSize() {
+    const pad  = 48;
+    const maxW = Math.floor((window.innerWidth  - pad - GRID) / 2);
+    const maxH = Math.floor((window.innerHeight - pad - GRID) / 2);
+    return snap(Math.max(MIN_SIZE, Math.min(maxW, maxH, 380)));
+  }
+
+  const DEFAULT_CARD_SIZE = computeDefaultCardSize();
 
   // ── Storage ────────────────────────────────────────────────────────────────
   const STORAGE = {
@@ -85,7 +94,10 @@
     STORAGE.sizes,
     v => isValidSizes(v) && v.length === N,
     () => defaultSizes(N),
-  );
+  ).map(s => ({
+    w: snap(Math.max(MIN_SIZE, Math.min(s.w, window.innerWidth))),
+    h: snap(Math.max(MIN_SIZE, Math.min(s.h, window.innerHeight))),
+  }));
 
   let labels    = $state(loadedLabels);
   let presets   = $state(loadedPresets);
@@ -101,7 +113,22 @@
     )
   );
 
+  const supportsPointerEvents = typeof window.PointerEvent !== 'undefined';
+
   let arranging = $state(false);
+
+  // Re-clamp cards when the viewport resizes (e.g. tablet rotation)
+  $effect(() => {
+    function handleResize() {
+      sizes = sizes.map(s => ({
+        w: snap(Math.max(MIN_SIZE, Math.min(s.w, window.innerWidth))),
+        h: snap(Math.max(MIN_SIZE, Math.min(s.h, window.innerHeight))),
+      }));
+      positions = clampPositions(positions, sizes);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  });
 
   // dragIndex used in template for class:is-dragging → needs $state
   let dragIndex  = $state(-1);
@@ -277,7 +304,12 @@
     </div>
   {:else}
     <div class="arrange-controls">
-      <button class="arrange-btn" onclick={() => { arranging = true; }}>Arrange</button>
+      <button
+      class="arrange-btn"
+      onclick={() => { arranging = true; }}
+      disabled={!supportsPointerEvents}
+      title={supportsPointerEvents ? undefined : 'Arrange requires a newer browser'}
+    >Arrange</button>
     </div>
   {/if}
 </div>
@@ -286,7 +318,8 @@
   .canvas {
     position: relative;
     width: 100%;
-    height: 100dvh;
+    height: 100vh;     /* iOS 12 fallback */
+    height: 100dvh;    /* modern browsers */
     overflow: hidden;
   }
 
@@ -372,9 +405,14 @@
     transition: background 150ms ease, color 150ms ease;
   }
 
-  .arrange-btn:hover {
+  .arrange-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.12);
     color: var(--color-text);
+  }
+
+  .arrange-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
   }
 
   .arrange-btn--active {
