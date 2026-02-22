@@ -113,7 +113,7 @@
     didSwipe = true;
     const sign     = dx > 0 ? -1 : 1; // L→R decreases, R→L increases
     const deltaSec = sign * (Math.exp(Math.abs(dx) / SWIPE_SCALE) - 1);
-    swipeValue = Math.max(1, Math.min(MAX_PRESET_SEC, Math.round(swipeStartValue + deltaSec)));
+    swipeValue = Math.max(0, Math.min(MAX_PRESET_SEC, Math.round(swipeStartValue + deltaSec)));
   }
 
   function presetPointerUp(e, i) {
@@ -134,7 +134,7 @@
     if (phase !== PHASES.IDLE || arranging) return;
     e.preventDefault();
     const delta = e.deltaY > 0 ? -WHEEL_STEP_SEC : WHEEL_STEP_SEC;
-    presets[i]  = Math.max(1, Math.min(MAX_PRESET_SEC, presets[i] + delta));
+    presets[i]  = Math.max(0, Math.min(MAX_PRESET_SEC, presets[i] + delta));
     onPresetsChange([...presets]);
   }
 

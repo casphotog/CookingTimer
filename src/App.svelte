@@ -1,24 +1,29 @@
 <script>
   import CookingField from './lib/CookingField.svelte';
 
-  const DEFAULT_LABELS     = ['Timer 1', 'Timer 2', 'Timer 3', 'Timer 4'];
   const DEFAULT_PRESET_ROW = [180, 300, 600];
-  const DEFAULT_PRESETS    = Array.from({ length: DEFAULT_LABELS.length }, () => [...DEFAULT_PRESET_ROW]);
   const MIN_SIZE           = 180;  // px — multiple of GRID
   const GRID               = 20;   // px — snap granularity
   const WIGGLE_DELAY       = 0.07; // seconds — stagger per card
 
   function snap(v) { return Math.round(v / GRID) * GRID; }
 
-  // Fit a 2-column × 2-row grid into the current viewport with generous padding
-  function computeDefaultCardSize() {
+  // Compute how many tiles fit (max 2 cols × 2 rows) and their natural square size
+  function computeDefaultLayout() {
+    const gap  = GRID;
     const pad  = 48;
-    const maxW = Math.floor((window.innerWidth  - pad - GRID) / 2);
-    const maxH = Math.floor((window.innerHeight - pad - GRID) / 2);
-    return snap(Math.max(MIN_SIZE, Math.min(maxW, maxH, 380)));
+    const cols = Math.max(1, Math.min(2, Math.floor((window.innerWidth  - pad + gap) / (MIN_SIZE + gap))));
+    const rows = Math.max(1, Math.min(2, Math.floor((window.innerHeight - pad + gap) / (MIN_SIZE + gap))));
+    const n    = cols * rows;
+    const w    = Math.floor((window.innerWidth  - pad - (cols - 1) * gap) / cols);
+    const h    = Math.floor((window.innerHeight - pad - (rows - 1) * gap) / rows);
+    const size = snap(Math.max(MIN_SIZE, Math.min(w, h, 380)));
+    return { n, cols, size };
   }
 
-  const DEFAULT_CARD_SIZE = computeDefaultCardSize();
+  const { n: DEFAULT_N, cols: DEFAULT_COLS, size: DEFAULT_CARD_SIZE } = computeDefaultLayout();
+  const DEFAULT_LABELS  = Array.from({ length: DEFAULT_N }, (_, i) => `Timer ${i + 1}`);
+  const DEFAULT_PRESETS = Array.from({ length: DEFAULT_N }, () => [...DEFAULT_PRESET_ROW]);
 
   // ── Storage ────────────────────────────────────────────────────────────────
   const STORAGE = {
@@ -56,7 +61,7 @@
   }
 
   function defaultPositions(n) {
-    const cols   = 2;
+    const cols   = DEFAULT_COLS;
     const gap    = GRID;
     const rows   = Math.ceil(n / cols);
     const blockW = cols * DEFAULT_CARD_SIZE + (cols - 1) * gap;
@@ -321,6 +326,7 @@
     height: 100vh;     /* iOS 12 fallback */
     height: 100dvh;    /* modern browsers */
     overflow: hidden;
+    touch-action: none;
   }
 
   .card-wrapper {
