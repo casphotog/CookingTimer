@@ -448,6 +448,7 @@
       background-color 250ms ease;
     cursor: default;
     user-select: none;
+    container-type: size;
   }
 
   .field.phase-running,
@@ -788,5 +789,21 @@
     font-size: 0.75rem;
     color: var(--color-muted);
     letter-spacing: 0.04em;
+  }
+
+  /* ── Wide tiles: preset buttons side-by-side ── */
+  @container (aspect-ratio > 1.5) {
+    .presets {
+      flex-direction: row;
+    }
+
+    .preset-btn {
+      font-size: 1rem;
+    }
+
+    /* Cancel button: fixed share of width rather than height */
+    .presets--running .btn-cancel-timer {
+      flex: 0 0 25%;
+    }
   }
 </style>
