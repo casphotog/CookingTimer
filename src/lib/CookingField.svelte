@@ -16,7 +16,7 @@
   const MAX_SECS = 59;
 
   const SWIPE_THRESHOLD_PX = 15;
-  const SWIPE_SCALE        = 100; // px per e-fold; higher = slower overall
+  const SWIPE_SCALE        = 50; // px per e-fold; higher = slower overall
   const WHEEL_STEP_SEC     = 1;
   const MAX_PRESET_SEC     = MAX_MINS * 60;
 
