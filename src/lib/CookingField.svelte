@@ -15,6 +15,11 @@
   const MAX_MINS = 99;
   const MAX_SECS = 59;
 
+  const SWIPE_THRESHOLD_PX = 15;
+  const SWIPE_SCALE        = 100; // px per e-fold; higher = slower overall
+  const WHEEL_STEP_SEC     = 1;
+  const MAX_PRESET_SEC     = MAX_MINS * 60;
+
   let {
     initialLabel,
     initialPresets,
@@ -41,6 +46,12 @@
 
   let presets = $state([...initialPresets]);
   let editingPresets = $state(false);
+
+  let swipingIndex    = $state(-1);
+  let swipeValue      = $state(0);
+  let swipeStartX     = 0;
+  let swipeStartValue = 0;
+  let didSwipe        = false;
   let editingPresetIndex = $state(0);
   let draftMins = $state([0, 0, 0]);
   let draftSecs = $state([0, 0, 0]);
@@ -82,6 +93,49 @@
     } else {
       draftSecs[i] = next;
     }
+  }
+
+  // ── Swipe / scroll preset adjustment ──────────────────────────────────────
+  function presetPointerDown(e, i) {
+    if (phase !== PHASES.IDLE || arranging) return;
+    swipeStartX     = e.clientX;
+    swipeStartValue = presets[i];
+    swipingIndex    = i;
+    swipeValue      = presets[i];
+    didSwipe        = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function presetPointerMove(e, i) {
+    if (swipingIndex !== i) return;
+    const dx = e.clientX - swipeStartX;
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return;
+    didSwipe = true;
+    const sign     = dx > 0 ? -1 : 1; // L→R decreases, R→L increases
+    const deltaSec = sign * (Math.exp(Math.abs(dx) / SWIPE_SCALE) - 1);
+    swipeValue = Math.max(1, Math.min(MAX_PRESET_SEC, Math.round(swipeStartValue + deltaSec)));
+  }
+
+  function presetPointerUp(e, i) {
+    if (swipingIndex !== i) return;
+    if (didSwipe) {
+      presets[i] = swipeValue;
+      onPresetsChange([...presets]);
+    }
+    swipingIndex = -1;
+  }
+
+  function presetPointerCancel(e, i) {
+    swipingIndex = -1;
+    didSwipe     = false;
+  }
+
+  function presetWheel(e, i) {
+    if (phase !== PHASES.IDLE || arranging) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -WHEEL_STEP_SEC : WHEEL_STEP_SEC;
+    presets[i]  = Math.max(1, Math.min(MAX_PRESET_SEC, presets[i] + delta));
+    onPresetsChange([...presets]);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -330,9 +384,19 @@
 
     <!-- Stacked preset buttons fill remaining card height -->
     <div class="presets">
-      {#each presets as secs}
-        <button class="preset-btn" onclick={() => startTimer(secs)}>
-          {formatTime(secs)}
+      {#each presets as secs, i}
+        <button
+          class="preset-btn"
+          class:is-swiping={swipingIndex === i}
+          onpointerdown={(e) => presetPointerDown(e, i)}
+          onpointermove={(e) => presetPointerMove(e, i)}
+          onpointerup={(e) => presetPointerUp(e, i)}
+          onpointercancel={(e) => presetPointerCancel(e, i)}
+          onwheel={(e) => presetWheel(e, i)}
+          onclick={() => { if (!didSwipe) startTimer(secs); }}
+          style="touch-action: none;"
+        >
+          {swipingIndex === i ? formatTime(swipeValue) : formatTime(secs)}
         </button>
       {/each}
       <button class="preset-btn preset-btn--stopwatch" onclick={startStopwatch} title="Count up">
@@ -613,9 +677,16 @@
   .preset-btn:hover {
     background: rgba(59, 130, 246, 0.12);
     border-color: var(--accent);
+    cursor: ew-resize;
   }
   .preset-btn:active {
     transform: scale(0.97);
+  }
+  .preset-btn.is-swiping {
+    background: rgba(59, 130, 246, 0.18);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+    transform: none;
   }
 
   .preset-btn--stopwatch {
