@@ -1,5 +1,4 @@
 <script>
-  import WheelPicker from "./WheelPicker.svelte";
 
   // ── Constants ──────────────────────────────────────────────────────────────
   const PHASES = { IDLE: 'idle', RUNNING: 'running', DONE: 'done', STOPWATCH: 'stopwatch' };
@@ -46,12 +45,44 @@
   let draftMins = $state([0, 0, 0]);
   let draftSecs = $state([0, 0, 0]);
 
-  // Height of the pickers-row flex cell — measured after layout so the
-  // WheelPicker can scale its item height to exactly fill the space.
-  let pickersRowHeight = $state(0);
-  let itemHeight = $derived(
-    pickersRowHeight > 4 ? Math.floor(pickersRowHeight / 5) : 50,
-  );
+  // ── Stepper repeat-on-hold ─────────────────────────────────────────────────
+  let repeatTimeout = null;
+  let repeatInterval = null;
+
+  function startRepeat(fn) {
+    fn();
+    repeatTimeout = setTimeout(() => {
+      repeatInterval = setInterval(fn, 90);
+    }, 380);
+  }
+
+  function stopRepeat() {
+    clearTimeout(repeatTimeout);
+    clearInterval(repeatInterval);
+    repeatTimeout = null;
+    repeatInterval = null;
+  }
+
+  function adjustMins(delta) {
+    const i = editingPresetIndex;
+    draftMins[i] = Math.max(0, Math.min(MAX_MINS, draftMins[i] + delta));
+  }
+
+  function adjustSecs(delta) {
+    const i = editingPresetIndex;
+    const next = draftSecs[i] + delta;
+    if (next > MAX_SECS) {
+      draftMins[i] = Math.min(MAX_MINS, draftMins[i] + 1);
+      draftSecs[i] = 0;
+    } else if (next < 0) {
+      if (draftMins[i] > 0) {
+        draftMins[i] -= 1;
+        draftSecs[i] = 50;
+      }
+    } else {
+      draftSecs[i] = next;
+    }
+  }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function formatTime(secs) {
@@ -99,6 +130,8 @@
       clearInterval(intervalId);
       clearInterval(doneIntervalId);
       clearInterval(stopwatchIntervalId);
+      clearTimeout(repeatTimeout);
+      clearInterval(repeatInterval);
     };
   });
 
@@ -349,29 +382,39 @@
         >
       </div>
 
-      <!-- pickers-row: flex:1 fills remaining card space; clientHeight feeds itemHeight -->
-      <div class="pickers-row" bind:clientHeight={pickersRowHeight}>
-        {#key editingPresetIndex}
-          <WheelPicker
-            value={draftMins[editingPresetIndex]}
-            min={0}
-            max={MAX_MINS}
-            {itemHeight}
-            onChange={(v) => {
-              draftMins[editingPresetIndex] = v;
-            }}
-          />
-          <span class="picker-sep">:</span>
-          <WheelPicker
-            value={draftSecs[editingPresetIndex]}
-            min={0}
-            max={MAX_SECS}
-            {itemHeight}
-            onChange={(v) => {
-              draftSecs[editingPresetIndex] = v;
-            }}
-          />
-        {/key}
+      <!-- stepper: CSS grid, switches from 3-row vertical to 1-row horizontal in short tiles -->
+      <div class="stepper">
+        <button
+          class="step-btn step-mins-up"
+          onpointerdown={() => startRepeat(() => adjustMins(1))}
+          onpointerup={stopRepeat} onpointerleave={stopRepeat} onpointercancel={stopRepeat}
+          oncontextmenu={(e) => e.preventDefault()}
+          aria-label="Increase minutes"
+        >+</button>
+        <span class="step-val step-mins-val">{String(draftMins[editingPresetIndex]).padStart(2, '0')}</span>
+        <button
+          class="step-btn step-mins-dn"
+          onpointerdown={() => startRepeat(() => adjustMins(-1))}
+          onpointerup={stopRepeat} onpointerleave={stopRepeat} onpointercancel={stopRepeat}
+          oncontextmenu={(e) => e.preventDefault()}
+          aria-label="Decrease minutes"
+        >−</button>
+        <span class="step-sep">:</span>
+        <button
+          class="step-btn step-secs-up"
+          onpointerdown={() => startRepeat(() => adjustSecs(10))}
+          onpointerup={stopRepeat} onpointerleave={stopRepeat} onpointercancel={stopRepeat}
+          oncontextmenu={(e) => e.preventDefault()}
+          aria-label="Increase seconds"
+        >+</button>
+        <span class="step-val step-secs-val">{String(draftSecs[editingPresetIndex]).padStart(2, '0')}</span>
+        <button
+          class="step-btn step-secs-dn"
+          onpointerdown={() => startRepeat(() => adjustSecs(-10))}
+          onpointerup={stopRepeat} onpointerleave={stopRepeat} onpointercancel={stopRepeat}
+          oncontextmenu={(e) => e.preventDefault()}
+          aria-label="Decrease seconds"
+        >−</button>
       </div>
 
       <div class="edit-actions">
@@ -649,32 +692,71 @@
     transform: scale(1.4);
   }
 
-  /* Pickers row — expands to absorb all remaining height */
-  .pickers-row {
+  /* ── Preset stepper (CSS Grid, 3-col × 3-row vertical by default) ── */
+  .stepper {
     flex: 1;
     min-height: 0;
-    display: flex;
-    align-items: stretch; /* children fill the full row height */
-    gap: 8px;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 6px;
+    align-content: start;
+    justify-items: center;
+    align-items: center;
   }
 
-  /* Each WheelPicker wrapper gets equal width */
-  .pickers-row :global(.picker) {
-    flex: 1;
-    width: auto;
-  }
+  /* Vertical grid placement */
+  .step-mins-up  { grid-column: 1; grid-row: 1; width: 100%; }
+  .step-mins-val { grid-column: 1; grid-row: 2; }
+  .step-mins-dn  { grid-column: 1; grid-row: 3; width: 100%; }
+  .step-sep      { grid-column: 2; grid-row: 1 / 4; align-self: center; }
+  .step-secs-up  { grid-column: 3; grid-row: 1; width: 100%; }
+  .step-secs-val { grid-column: 3; grid-row: 2; }
+  .step-secs-dn  { grid-column: 3; grid-row: 3; width: 100%; }
 
-  .picker-sep {
-    font-family: var(--font-mono);
-    font-size: 2rem;
-    font-weight: 700;
-    color: rgba(232, 232, 232, 0.25);
+  .step-btn {
+    height: 30px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    color: var(--color-text);
+    font-size: 1.1rem;
     line-height: 1;
-    width: 24px;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
+    transition: background 120ms ease, border-color 120ms ease;
+    user-select: none;
+    touch-action: none;
+  }
+  .step-btn:hover {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: var(--accent);
+  }
+  .step-btn:active {
+    background: rgba(59, 130, 246, 0.22);
+  }
+
+  .step-val {
+    font-family: var(--font-mono);
+    font-size: 2.4rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+    line-height: 1;
+    text-align: center;
+  }
+
+  .step-sep {
+    font-family: var(--font-mono);
+    font-size: 2rem;
+    font-weight: 700;
+    color: rgba(232, 232, 232, 0.28);
+    line-height: 1;
+    text-align: center;
+    padding: 0 4px;
   }
 
   .edit-actions {
@@ -789,6 +871,27 @@
     font-size: 0.75rem;
     color: var(--color-muted);
     letter-spacing: 0.04em;
+  }
+
+  /* ── Short tiles: collapse stepper to a single horizontal row ── */
+  /* Fixed sizes — constraint here is HEIGHT not width, so cqw is wrong. */
+  @container (max-height: 220px) {
+    .stepper {
+      grid-template-columns: auto auto auto auto auto auto auto;
+      grid-template-rows: 1fr;
+      gap: 6px;
+      width: fit-content; /* don't stretch — auto columns would fill all 900px */
+      margin: 0 auto;     /* center the compact group in the tile */
+    }
+
+    /* Horizontal placement: [−m] [05] [+m] [:] [−s] [30] [+s] */
+    .step-mins-dn  { grid-column: 1; grid-row: 1; width: 28px; height: 28px; }
+    .step-mins-val { grid-column: 2; grid-row: 1; font-size: 1.5rem; }
+    .step-mins-up  { grid-column: 3; grid-row: 1; width: 28px; height: 28px; }
+    .step-sep      { grid-column: 4; grid-row: 1; font-size: 1.3rem; padding: 0; }
+    .step-secs-dn  { grid-column: 5; grid-row: 1; width: 28px; height: 28px; }
+    .step-secs-val { grid-column: 6; grid-row: 1; font-size: 1.5rem; }
+    .step-secs-up  { grid-column: 7; grid-row: 1; width: 28px; height: 28px; }
   }
 
   /* ── Wide tiles: preset buttons side-by-side ── */
